@@ -178,10 +178,10 @@ export const actions = {
         email: authData.email,
         password: authData.password,
         returnSecureToken: true
-      }).then(res => {
+      }).then(res => {//***dispatch runs an action and commit runs a mutation ***
       vuexContext.commit('setToken', res.idToken);//this token is only valid for 1 hour
 
-      const expiration = new Date().getTime() + res.expiresIn * 1000;
+      const expiration = new Date().getTime() + Number.parseInt(res.expiresIn) * 1000; //expiresIn is a string
 
       localStorage.setItem('token', res.idToken); //storing to token in local storage so that we can access it even after refresh
       localStorage.setItem('tokenExpiration', expiration); //we want a date //.getTIme convert the date into millisecond
@@ -189,16 +189,8 @@ export const actions = {
       //these cookies will be created on the client side and sent back inside the header every time the browser send a GET req
       Cookie.set('jwt', res.idToken); //cookies are attach to every get requests ,so, it's easy to access them in the server side
       Cookie.set('expirationDate', expiration); //checkout the cookies section under application tab of dev tools to see these cookies
-
-      vuexContext.dispatch('setLogoutTimer', res.expiresIn * 1000);//***dispatch runs an action and commit runs a mutation ***
       })
       .catch(error => console.log(error))
-  },
-
-  setLogoutTimer (vuexContext, duration) {
-    setTimeout(() => {
-      vuexContext.commit('clearToken')
-    }, duration)
   },
 
   initAuth(vuexContext, req) {
@@ -221,15 +213,27 @@ export const actions = {
     } else {//if there is no req then we are on the client, so, we can access localStorage
       token = localStorage.getItem('token');
       expirationDate = localStorage.getItem('tokenExpiration');
-
-      if(new Date().getTime() > +expirationDate || !token) { //because expirationDate is a string and we want to convert it to number
-        return;
-      }
     }
 
-    vuexContext.dispatch('setLogoutTimer', +expirationDate - new Date().getTime()); //***dispatch runs an action and commit runs a mutation ***
+    if(new Date().getTime() > +expirationDate || !token) { //plus sign because expirationDate is a string and we want to convert it to number
+      console.log('No token or invalid token');
+      //vuexContext.commit('clearToken'); //if there is no expirationDate or expirationDate is smaller than current date, we want to remove expired token
+      vuexContext.dispatch('logout');
+      return;
+    }
     vuexContext.commit('setToken', token); //setting the token we got from localStorage to the state
-  }
+  },
 
+
+  logout(vuexContext) {
+    vuexContext.commit('clearToken')
+    Cookie.remove('jwt');
+    Cookie.remove('expirationDate');
+
+    if(process.client) { //variable nuxt provide
+      localStorage.removeItem('token');
+      localStorage.removeItem('tokenExpiration')
+    }
+  }
 };
 
